@@ -4,7 +4,7 @@ use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_v
 pub struct Args {
   pub rocket_port: u16,
   pub zeronet_path: String,
-  pub site_address: String,
+  pub site_addresses: Vec<String>,
 }
 
 fn is_u16(v: String) -> Result<(), String> {
@@ -40,7 +40,7 @@ pub fn get_arguments() -> Option<Args> {
         .short("a")
         .long("site_address")
         .aliases(&["site", "address"])
-        .help("Address of the ZeroBlog to statify.")
+        .help("Comma-separated list of ZeroBlog addresses to statify.")
         .env("SITE_ADDRESS"),
     )
     .get_matches();
@@ -48,7 +48,7 @@ pub fn get_arguments() -> Option<Args> {
   let args = Args {
     rocket_port: matches.value_of("rocket_port")?.parse().ok()?,
     zeronet_path: matches.value_of("zeronet_path")?.to_string(),
-    site_address: matches.value_of("site_address")?.to_string(),
+    site_addresses: matches.value_of("site_address")?.to_string().split(',').map(|s| s.to_string()).collect(),
   };
 
   Some(args)

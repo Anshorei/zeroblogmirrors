@@ -25,7 +25,6 @@ pub fn markdown(content: &str) -> String {
     .url_relative(UrlRelative::Custom(Box::new(evaluate)))
     .clean(&*unsafe_html)
     .to_string()
-  // ammonia::clean(&*unsafe_html)
 }
 
 fn image_to_video(event: Event) -> Event {
@@ -64,6 +63,7 @@ fn evaluate(url: &str) -> Option<Cow<str>> {
     // TODO: handle ZeroNet urls
     Some(Cow::Borrowed(url))
   } else {
+    // let url = url.split_once('/').map(|url| url.1).unwrap_or("");
     Some(Cow::Owned(String::from("/") + url))
   }
 }

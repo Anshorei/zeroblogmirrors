@@ -2,6 +2,7 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize, Default, Debug)]
 pub struct Content {
+  pub address: String,
   pub modified: usize,
   pub title: String,
   pub description: String,
@@ -17,6 +18,7 @@ pub struct ZeroBlog {
   pub demo: bool,
   pub modified: usize,
   pub post: Vec<ZeroBlogPost>,
+  #[serde(default)]
   pub tag: Vec<ZeroBlogPostTag>,
 }
 

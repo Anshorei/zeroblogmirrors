@@ -8,18 +8,19 @@ use std::thread;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::path::{Path, PathBuf};
+use std::collections::HashMap;
 
 mod schemas;
 mod args;
 mod file_watcher;
-mod shared_state;
+mod zero_site;
 mod utils;
 
-use shared_state::SharedState;
+use zero_site::SiteData;
 use args::Args;
 
 struct StateWrapper {
-  shared_state: Arc<Mutex<SharedState>>,
+  sites: HashMap<String, Arc<Mutex<SiteData>>>,
   args: Args,
 }
 
@@ -30,62 +31,43 @@ fn main() {
   let (sender, receiver) = channel();
   let mut watcher = watcher(sender, Duration::from_secs(10)).unwrap();
 
-  let shared_state = Arc::new(Mutex::new(SharedState::default()));
-  let moved_state = shared_state.clone();
+  let mut sites = HashMap::new();
+  args.site_addresses.iter().for_each(|address| {
+    sites.insert(address.clone(), Arc::new(Mutex::new(SiteData::default())));
+  });
+
+  let moved_sites = sites.clone();
   let moved_args = args.clone();
-  thread::spawn(|| file_watcher::watch(moved_args, watcher, receiver, moved_state));
+  thread::spawn(|| file_watcher::watch(moved_args, watcher, receiver, moved_sites));
 
   let mut config = Config::active().unwrap();
   config.set_port(args.rocket_port);
-  let state = StateWrapper{shared_state, args};
+  let state = StateWrapper{sites, args};
   rocket::custom(config)
-    .mount("/", routes![index, blog_post, static_file])
+    .mount("/", routes![index, static_file, blog_post])
     .manage(state)
     .launch();
 }
 
-#[get("/")]
-fn index(state: State<StateWrapper>) -> Markup {
-  let state = state.shared_state.lock().unwrap();
-  html! {
-    h1 { (state.data.title) }
-    div { (PreEscaped(utils::markdown(&state.data.description))) }
-    div {
-      @for post in &state.data.post {
-        h2 { (post.title) }
-        div { (PreEscaped(utils::markdown(&post.short_body()))) }
-        a href=(format!("/post/{}", post.post_id)) { "Read more ->" }
-      }
-    }
-  }
+#[get("/<address>")]
+fn index(state: State<StateWrapper>, address: String) -> Option<Markup> {
+  trace!("Request for index of {}", address);
+  Some(state.sites.get(&address)?.lock().unwrap().index())
 }
 
-#[get("/post/<post_id>")]
-fn blog_post(state: State<StateWrapper>, post_id: usize) -> Markup {
-  let state = state.shared_state.lock().unwrap();
-  let post = state.data.post.iter().find(|p| p.post_id == post_id);
-  html! {
-    h1 { (state.data.title) }
-    @if post_id > 1 {
-      a href=(format!("/post/{}", post_id-1)) { "<- Prev" }
-    }
-    { " " }
-    @if post_id < state.data.next_post_id-1 {
-      a href=(format!("/post/{}", post_id+1)) { "Next ->" }
-    }
-    @if let Some(post) = post {
-      h2 { (post.title) }
-      p { (utils::datetime::format_timestamp(post.date_published as i64)) }
-      div { (PreEscaped(utils::markdown(&post.body))) }
-    } @else {
-      h2 { "404 Not Found" }
-    }
-  }
+#[get("/<address>/post/<post_id>")]
+fn blog_post(state: State<StateWrapper>, address: String, post_id: usize) -> Option<Markup> {
+  trace!("Request for blog post {} of {}", post_id, address);
+  Some(state.sites.get(&address)?.lock().unwrap().blog_post(post_id))
 }
 
-#[get("/data/<path..>")]
-fn static_file(state: State<StateWrapper>, path: PathBuf) -> Option<NamedFile> {
-  let mut path = Path::new(&state.args.zeronet_path).join(&state.args.site_address).join("data").join(path);
+#[get("/<address>/data/<path..>")]
+fn static_file(state: State<StateWrapper>, address: String, path: PathBuf) -> Option<NamedFile> {
+  if !state.args.site_addresses.contains(&address) {
+    return None
+  }
+
+  let mut path = Path::new(&state.args.zeronet_path).join(address).join("data").join(path);
   if path.is_dir() {
     path.push("index.html");
   }
