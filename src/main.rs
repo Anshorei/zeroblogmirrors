@@ -44,7 +44,7 @@ fn main() {
   config.set_port(args.rocket_port);
   let state = StateWrapper{sites, args};
   rocket::custom(config)
-    .mount("/", routes![index, static_file, blog_post])
+    .mount("/", routes![index, static_data_file, static_font_file, blog_post, css])
     .manage(state)
     .launch();
 }
@@ -55,6 +55,17 @@ fn index(state: State<StateWrapper>, address: String) -> Option<Markup> {
   Some(state.sites.get(&address)?.lock().unwrap().index())
 }
 
+#[get("/<address>/css")]
+fn css(state: State<StateWrapper>, address: String) -> Option<NamedFile> {
+  trace!("Request for css of {}", address);
+  if state.sites.contains_key(&address) {
+    let path = Path::new(&state.args.zeronet_path).join(address).join("css/all.css");
+    trace!("Passing {:?}", &path);
+    return NamedFile::open(path).ok();
+  }
+  None
+}
+
 #[get("/<address>/post/<post_id>")]
 fn blog_post(state: State<StateWrapper>, address: String, post_id: usize) -> Option<Markup> {
   trace!("Request for blog post {} of {}", post_id, address);
@@ -62,7 +73,7 @@ fn blog_post(state: State<StateWrapper>, address: String, post_id: usize) -> Opt
 }
 
 #[get("/<address>/data/<path..>")]
-fn static_file(state: State<StateWrapper>, address: String, path: PathBuf) -> Option<NamedFile> {
+fn static_data_file(state: State<StateWrapper>, address: String, path: PathBuf) -> Option<NamedFile> {
   if !state.args.site_addresses.contains(&address) {
     return None
   }
@@ -72,6 +83,21 @@ fn static_file(state: State<StateWrapper>, address: String, path: PathBuf) -> Op
     path.push("index.html");
   }
   trace!("Data file request: {:?}", path);
+
+  NamedFile::open(path).ok()
+}
+
+#[get("/<address>/fonts/<path..>")]
+fn static_font_file(state: State<StateWrapper>, address: String, path: PathBuf) -> Option<NamedFile> {
+  if !state.args.site_addresses.contains(&address) {
+    return None
+  }
+
+  let mut path = Path::new(&state.args.zeronet_path).join(address).join("fonts").join(path);
+  if path.is_dir() {
+    path.push("index.html");
+  }
+  trace!("Font file request: {:?}", path);
 
   NamedFile::open(path).ok()
 }
