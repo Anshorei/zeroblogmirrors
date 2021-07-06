@@ -50,7 +50,9 @@ impl SiteData {
       div class="posts" {
         @for post in &self.data.post {
           div class="post" {
-            h2 class="title" { (post.title) }
+            a class="nolink" href=(format!("/post/{}", post.post_id)) {
+              h2 class="title" { (post.title) }
+            }
             p class="details" {
               span { "on " }
               span { (utils::datetime::format_date(post.date_published as i64)) }
