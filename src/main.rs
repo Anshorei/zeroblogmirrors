@@ -19,6 +19,8 @@ mod utils;
 use zero_site::SiteData;
 use args::Args;
 
+use crate::utils::cached_file::CachedFile;
+
 struct StateWrapper {
   sites: HashMap<String, Arc<Mutex<SiteData>>>,
   args: Args,
@@ -56,12 +58,12 @@ fn index(state: State<StateWrapper>, address: String) -> Option<Markup> {
 }
 
 #[get("/<address>/css")]
-fn css(state: State<StateWrapper>, address: String) -> Option<NamedFile> {
+fn css(state: State<StateWrapper>, address: String) -> Option<CachedFile> {
   trace!("Request for css of {}", address);
   if state.sites.contains_key(&address) {
     let path = Path::new(&state.args.zeronet_path).join(address).join("css/all.css");
     trace!("Passing {:?}", &path);
-    return NamedFile::open(path).ok();
+    return NamedFile::open(path).map(|nf| CachedFile::new(nf)).ok();
   }
   None
 }
@@ -88,7 +90,7 @@ fn static_data_file(state: State<StateWrapper>, address: String, path: PathBuf) 
 }
 
 #[get("/<address>/fonts/<path..>")]
-fn static_font_file(state: State<StateWrapper>, address: String, path: PathBuf) -> Option<NamedFile> {
+fn static_font_file(state: State<StateWrapper>, address: String, path: PathBuf) -> Option<CachedFile> {
   if !state.args.site_addresses.contains(&address) {
     return None
   }
@@ -99,5 +101,5 @@ fn static_font_file(state: State<StateWrapper>, address: String, path: PathBuf) 
   }
   trace!("Font file request: {:?}", path);
 
-  NamedFile::open(path).ok()
+  NamedFile::open(path).map(|nf| CachedFile::new(nf)).ok()
 }

@@ -1,4 +1,5 @@
 pub mod datetime;
+pub mod cached_file;
 
 use std::borrow::Cow;
 use std::boxed::Box;
